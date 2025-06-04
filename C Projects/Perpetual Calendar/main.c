@@ -1,0 +1,434 @@
+/* 
+
+
+Perpetual Calendar Project - CIS 1057
+
+
+        Group Members:
+            Pablo Rivas,
+            Md Alamin,
+            Ivan Faucett
+            
+*/
+
+
+#include <stdio.h>
+#include <string.h>
+
+
+#define MAX_EVENTS 100
+#define MAX_LINE 120
+#define MAX_DESCRIPTION 120
+const char *MONTH_NAMES[] = {
+        "January", "February", "March",
+        "April", "May", "June", "July",
+        "August", "September", "October",
+        "November", "December"};
+
+
+struct event {
+    int day, month, year;
+    char description[100];
+};
+
+
+void printCalendar(int year, int month, struct event events[]);
+void addEvent(char *fileName, struct event events[]);
+void deleteEvent(char *fileName, struct event events[]);
+void modifyEvent(char *fileName, struct event events[]);
+int readEventsFromFile(char *fileName, struct event events[]);
+void writeEventsToFile(char *fileName, struct event events[], int n);
+int dayOfWeek(int year, int month, int day);
+
+
+int main(void) {
+    char *fileName = "events.txt";
+    struct event events[MAX_EVENTS];
+    int nEvents = readEventsFromFile(fileName, events);
+
+
+    int option = 0;
+    while (option != 5) {
+        printf("\n");
+        printf("1. Print calendar for a month\n");
+        printf("2. Print calendar for a year\n");
+        printf("3. Add event\n");
+        printf("4. Delete event\n");
+        printf("5. Modify event\n");
+        printf("6. Quit\n");
+        printf("Please enter your choice: ");
+        scanf("%d", &option);
+
+
+        switch (option) {
+            case 1:
+                printf("Please enter the month (1-12): ");
+                int month;
+                scanf("%d", &month);
+                printf("Please enter the year: ");
+                int year;
+                scanf("%d", &year);
+                printCalendar(year, month, events);
+                break;
+            case 2:
+                printf("Please enter the year: ");
+                scanf("%d", &year);
+                for (int i = 1; i <= 12; i++)
+                {
+                    printCalendar(year, i, events);
+                }
+                break;
+            case 3:
+                addEvent(fileName, events);
+                nEvents++;
+                break;
+            case 4:
+                deleteEvent(fileName, events);
+                nEvents--;
+                break;
+            case 5:
+                modifyEvent(fileName, events);
+                break;
+            case 6:
+                printf("Goodbye!\n");
+                return 0;
+                break;
+            default:
+                printf("Invalid option, please try again.\n");
+                break;
+        }
+
+
+        // if (option != 6) {
+        //     writeEventsToFile(fileName, events, nEvents);
+        // }
+    }
+
+
+    return 0;
+}
+
+
+int readEventsFromFile(char *fileName, struct event events[]) {
+    FILE *file = fopen(fileName, "r");
+    if (file == NULL) {
+        printf("Error opening file: %s\n", fileName);
+        return 0;
+    }
+
+
+    int n = 0;
+    while (!feof(file) && n < MAX_EVENTS) {
+        fscanf(file, "%d %d %d %[^\n]", &events[n].day, &events[n].month, &events[n].year, events[n].description);
+        n++;
+    }
+
+
+    fclose(file);
+    return n;
+}
+
+
+void modifyEvent(char *fileName, struct event events[]) {
+    int n = readEventsFromFile(fileName, events); // read events from file
+    if (n == 0)
+    {
+        printf("No events to modify.\n");
+        return;
+    }
+
+
+    int i, j, day, month, year;
+    printf("Enter the date of the event to modify (DD MM YYYY): ");
+    if (scanf("%d %d %d", &day, &month, &year) != 3)
+    {
+        printf("Invalid date format.\n");
+        return;
+    }
+
+
+    int found = 0;
+    for (i = 0; i < n; i++)
+    {
+        if (events[i].day == day && events[i].month == month && events[i].year == year)
+        {
+            found = 1;
+            printf("Enter the new description of the event (max 50 characters):\n");
+            scanf(" %[^\n]", events[i].description);
+            writeEventsToFile(fileName, events, n); // save modified events to file
+            printf("Event modified.\n");
+            break;
+        }
+    }
+
+
+    if (!found)
+    {
+        printf("No event found for that date.\n");
+    }
+}
+
+
+void deleteEvent(char *fileName, struct event events[]) {
+    int index;
+    printf("Enter index of event to delete (0-%d): ", MAX_EVENTS - 1);
+    scanf("%d", &index);
+
+
+    // Check that index is valid
+    if (index < 0 || index >= MAX_EVENTS)
+    {
+        printf("Invalid index\n");
+        return;
+    }
+
+
+    // Check that the event at the index is not empty
+    if (events[index].year == 0)
+    {
+        printf("No event at index %d\n", index);
+        return;
+    }
+
+
+    // Delete the event from the events array
+    events[index].year = 0;
+    events[index].month = 0;
+    events[index].day = 0;
+    strcpy(events[index].description, "");
+
+
+    // Open the user's file for reading and a temporary file for writing
+    FILE *fp, *tmp_fp;
+    fp = fopen(fileName, "r");
+    if (fp == NULL)
+    {
+        printf("Error opening file\n");
+        return;
+    }
+    tmp_fp = fopen("tmp.txt", "w");
+    if (tmp_fp == NULL)
+    {
+        printf("Error creating temporary file\n");
+        fclose(fp);
+        return;
+    }
+
+
+    // Copy all lines from the user's file to the temporary file except the one to delete
+    char line[MAX_LINE];
+    int count = 0;
+    while (fgets(line, MAX_LINE, fp) != NULL)
+    {
+        if (count != index)
+        {
+            fputs(line, tmp_fp);
+        }
+        count++;
+    }
+
+
+    // Close both files
+    fclose(fp);
+    fclose(tmp_fp);
+
+
+    // Delete the user's file and rename the temporary file to the user's file
+    if (remove(fileName) != 0)
+    {
+        printf("Error deleting file\n");
+        return;
+    }
+    if (rename("tmp.txt", fileName) != 0)
+    {
+        printf("Error renaming file\n");
+        return;
+    }
+
+
+    printf("Event deleted successfully\n");
+}
+void addEvent(char *fileName, struct event events[]) {
+    char desc[MAX_DESCRIPTION];
+    int year, month, day;
+
+
+    // Prompt the user for event details
+    printf("Enter month (1-12): ");
+    scanf("%d", &month);
+    printf("Enter day (1-31): ");
+    scanf("%d", &day);
+    printf("Enter year (YYYY): ");
+    scanf("%d", &year);
+    char find_newline; // grabs new line character from scanf
+    scanf("%c", &find_newline);
+    printf("Enter event description: ");
+    fgets(desc, MAX_DESCRIPTION, stdin);
+
+
+    // Find the first empty slot in the events array
+    int index = -1;
+    for (int i = 0; i < MAX_EVENTS; i++)
+    {
+        if (events[i].year == 0)
+        {
+            index = i;
+            break;
+        }
+    }
+    if (index == -1)
+    {
+        printf("No more space for events\n");
+        return;
+    }
+
+
+    // Store the new event in the events array
+    events[index].year = year;
+    events[index].month = month;
+    events[index].day = day;
+    strcpy(events[index].description, desc);
+
+
+    // Open the user's file for appending
+    FILE *fp;
+    fp = fopen(fileName, "a");
+    if (fp == NULL)
+    {
+        printf("Error opening file\n");
+        return;
+    }
+
+
+    // Write the new event to the file
+    fprintf(fp, "%d/%d/%d: %s\n", month, day, year, desc);
+
+
+    // Close the file
+    fclose(fp);
+
+
+    printf("Event added successfully\n");
+}
+
+
+int dayOfWeek(int year, int month, int day) {
+    int a = (14 - month) / 12;
+    int y = year - a;
+    int m = month + 12 * a - 2;
+    int d = (day + y + y / 4 - y / 100 + y / 400 + (31 * m) / 12) % 7;
+    return d;
+}
+
+
+void printCalendar(int year, int month, struct event events[]) {
+    // Determine the number of days in the month
+
+
+    int daysInMonth;
+    if (month == 2)
+    {
+        if ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0)
+        {
+            daysInMonth = 29;
+        }
+        else
+        {
+            daysInMonth = 28;
+        }
+    }
+    else if (month == 4 || month == 6 || month == 9 || month == 11)
+    {
+        daysInMonth = 30;
+    }
+    else
+    {
+        daysInMonth = 31;
+    }
+
+
+    // Print the month and year header
+    printf("%s %d\n", MONTH_NAMES[month - 1], year);
+    printf("Su Mo Tu We Th Fr Sa\n");
+
+
+    // Determine the day of the week of the first day of the month
+    int firstDayOfWeek = dayOfWeek(year, month, 1);
+
+
+    // Print the blanks before the first day of the month
+    for (int i = 0; i < firstDayOfWeek; i++)
+    {
+        printf("   ");
+    }
+
+
+    // Print the days of the month
+    for (int day = 1; day <= daysInMonth; day++)
+    {
+        // Print the day
+        printf("%2d", day);
+
+
+        // Print an event marker if there is an event on this day
+        for (int i = 0; i < MAX_EVENTS; i++)
+        {
+            if (events[i].year == year && events[i].month == month && events[i].day == day)
+            {
+                printf("*");
+                break;
+            }
+        }
+
+
+        // Print a newline if this is the last day of the week
+        if ((firstDayOfWeek + day - 1) % 7 == 6)
+        {
+            printf("\n");
+        }
+        else
+        {
+            printf(" ");
+        }
+    }
+    printf("\n");
+
+
+    printf("Events for %d/%d:\n", month, year);
+    for (int i = 0; i < MAX_EVENTS; i++)
+    {
+        if (events[i].year == year && events[i].month == month)
+        {
+            printf("%d/%d/%d - %s\n", events[i].day, events[i].month, events[i].year, events[i].description);
+        }
+    }
+
+
+    // Print extra newline if necessary
+    if ((firstDayOfWeek + daysInMonth - 1) % 7 != 6)
+    {
+        printf("\n");
+    }
+}
+
+
+void writeEventsToFile(char *fileName, struct event events[], int n) {
+    FILE *fp;
+    fp = fopen(fileName, "a");
+
+
+    if (fp == NULL)
+    {
+        printf("Error opening file!");
+        return;
+    }
+
+
+    for (int i = 0; i < n; i++)
+    {
+        fprintf(fp, "%d/%d/%d,%s\n", events[i].day, events[i].month, events[i].year, events[i].description);
+    }
+
+
+    fclose(fp);
+}
